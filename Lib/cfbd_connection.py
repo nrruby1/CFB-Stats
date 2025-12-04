@@ -5,11 +5,11 @@ import config
 import cfbd
 from cfbd.api_client import ApiClient
 
+log = logging.getLogger('CfbStats')
+
 class CfbdConnection(ApiClient):
 
-    def __init__(self, log: logging.Logger = logging.getLogger()):
-        self.log = log
-
+    def __init__(self):
         # Configure Bearer authorization: apiKey
         configuration = cfbd.Configuration(
             host = "https://api.collegefootballdata.com",
@@ -19,13 +19,13 @@ class CfbdConnection(ApiClient):
         super().__init__(configuration)
 
     def __del__(self):
-        self.log.debug("CFBD API client closed")
+        log.debug("CFBD API client closed")
         super().close()
 
 retries = 3
 wait_time = 5
 
-def api_call(lamb: Callable, log: logging.Logger = logging.getLogger()) -> list | None:
+def api_call(lamb: Callable) -> list | None:
 
     """
     Executes a CFDB API call from a lambda. Handles exceptions with 

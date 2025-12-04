@@ -12,6 +12,8 @@ from .model.team import *
 from .model.conference import *
 from .model.venue import *
 
+log = logging.getLogger('CfbStats.db')
+
 class Databases(Enum):
     extraction = "cfb_extraction"
     staging = "cfb_staging"
@@ -32,12 +34,11 @@ cfb_models = {
 }
 
 class DbConnection(MongoClient):
-    def __init__(self, log: logging.Logger = logging.getLogger()):
-        self.log = log
+    def __init__(self):
         super().__init__(config.db_uri, server_api=ServerApi('1'))
 
     def __del__(self):
-        self.log.debug("MongoDb client closed")
+        log.debug("MongoDb client closed")
         super().close()
         super().__del__()
 

@@ -9,19 +9,18 @@ from db.model.conference import *
 from db.model.venue import *
 from etl.extraction_datasets import ExtractTeamDataSet, ExtractConferenceDataSet, ExtractVenueDataSet
 
+log = logging.getLogger('CfbStats.etl')
+
 class EtlInit(EtlBase):
     
-    def __init__(self, *, log: logging.Logger = None, clean_extract: bool = True, clean_staging: bool = True):
-        if log == None:
-            log = logging.getLogger(type(self).__name__)
-
-        super().__init__(log, clean_extract=clean_extract, clean_staging=clean_staging)
+    def __init__(self, *, clean_extract: bool = True, clean_staging: bool = True):
+        super().__init__(clean_extract=clean_extract, clean_staging=clean_staging)
 
         years = [2023, 2024, 2025]
         classifications = ["fbs", "fcs"]
 
         self.datasets = {
-            InitDataset(log, years, classifications)
+            InitDataset(years, classifications)
         }
 
     def post_transform(self) -> bool:
@@ -31,14 +30,14 @@ class EtlInit(EtlBase):
         return True
 
 class InitDataset(DataSet):
-    def __init__(self, log, years: list[int], classifications: list[str]):
-        super().__init__(log)
+    def __init__(self, years: list[int], classifications: list[str]):
+        super().__init__()
         self.classifications = classifications
 
         self.extract_datasets = {
-            ExtractTeamDataSet(log, year_list=years, class_list=classifications), 
-            ExtractConferenceDataSet(log, class_list=classifications),
-            ExtractVenueDataSet(log)
+            ExtractTeamDataSet(year_list=years, class_list=classifications), 
+            ExtractConferenceDataSet(class_list=classifications),
+            ExtractVenueDataSet()
         }
 
     def transform(self, db_client) -> bool:
@@ -52,7 +51,7 @@ class InitDataset(DataSet):
                 validate_fields = validate_mandatory_fields(extr_team, "id", "year", "school", "conference", 
                                                            "classification", "location")
                 if not validate_fields:
-                    self.log.warning(f"InitDataset: Skipping {extr_team.get("school")} due to missing mandatory field(s)")
+                    log.warning(f"InitDataset: Skipping {extr_team.get("school")} due to missing mandatory field(s)")
                     continue
 
                 if extr_team["classification"] not in self.classifications:
@@ -60,12 +59,12 @@ class InitDataset(DataSet):
                 
                 conference = self.get_or_create_conference(db_client, extr_team)
                 if conference is None:
-                    self.log.warning(f"InitDataset: {extr_team.get("school")} has no conference, skipping")
+                    log.warning(f"InitDataset: {extr_team.get("school")} has no conference, skipping")
                     continue
 
                 venue = self.get_or_create_venue(db_client, extr_team)
                 if venue is None:
-                    self.log.warning(f"InitDataset: {extr_team.get("school")} has no venue")
+                    log.warning(f"InitDataset: {extr_team.get("school")} has no venue")
 
                 team = Team(
                     teamId=extr_team.get("id"),
@@ -98,7 +97,7 @@ class InitDataset(DataSet):
                 stage_team_ext_repo.save(team_ext)
 
         except Exception as e:
-            self.log.exception("InitDataset: Exception when transforming: %s" % e)
+            log.exception("InitDataset: Exception when transforming: %s" % e)
             return False
         
         return True
@@ -194,10 +193,10 @@ class InitDataset(DataSet):
             query = lambda entity : {"venue_id": entity.venue_id}
             load_into_production(prod_repo=prod_venue_repo, stage_repo=stage_venue_repo, query=query)
         except Exception as e:
-            self.log.exception("InitDataset: Exception when loading: %s" % e)
+            log.exception("InitDataset: Exception when loading: %s" % e)
     
     def cleanup(self, db_client):
         try:
             cleanup_staging_collections(db_client, Team, TeamExt, Conference, Venue)
         except Exception as e:
-            self.log.exception("InitDataset: Exception when during cleanup: %s" % e)
+            log.exception("InitDataset: Exception when during cleanup: %s" % e)

@@ -1,3 +1,6 @@
 Log/*
+__pycache__/
 
 Lib/config.py
+Lib/playground.py
+apply_logs.ps1
