@@ -1,6 +1,7 @@
 Log/*
 __pycache__/
+.vscode/settings.json
 
 Lib/config.py
 Lib/playground.py
-apply_logs.ps1
+Lib/notes.txt

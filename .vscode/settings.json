@@ -12,5 +12,17 @@
     "python.testing.pytestArgs": [
         "Tests"
     ],
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [
+        {
+            "path": "C:/Workspace/CfbStats",
+            "envManager": "venv",
+            "packageManager": "pip"
+        }
+    ],
+    "python.languageServer": "Pylance",
+    "python.analysis.extraPaths": [
+        "C:/Workspace/CfbStats/.venv/Lib/site-packages"
+    ],
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.useImportHeuristic": true
 }

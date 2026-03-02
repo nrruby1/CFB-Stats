@@ -1,7 +1,7 @@
 import logging
 
 # Configure root logger
-app_logger = logging.getLogger('')
+app_logger = logging.getLogger('CfbStats')
 app_logger.setLevel(logging.DEBUG)
 
 # Configure log file for all output

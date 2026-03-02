@@ -1,38 +1,48 @@
 import logging
 from abc import ABC, abstractmethod
+from math import e
 from typing import Callable
 
 from pydantic_mongo import AbstractRepository
-from db.db_connection import DbConnection
-from cfbd_connection import CfbdConnection
+from db.db_connection import *
+from db.model.cfb_model import CfbBaseModel
+from etl.cfbd_connection import CfbdConnection
 
-log = logging.getLogger('CfbStats.etl')
+log = logging.getLogger("CfbStats.etl")
+
 
 class EtlBase(ABC):
     """
-    Abstract ETL tool for moving data from the CFBD API to the DB.
+    Abstract ETL tool for moving data from external sources to the DB.
     """
 
     @abstractmethod
-    def __init__(self, *, clean_extract: bool = True, clean_staging: bool = True):
+    def __init__(
+        self,
+        *,
+        clean_extract: bool = True,
+        clean_staging: bool = True,
+        test_mode: bool = False,
+    ):
         """
-        Implementations must set 'extract_datasets' and 'datasets' variables. 
+        Implementations must set 'extract_datasets' and 'datasets' variables.
         """
         self.extract_datasets: set[ExtractionDataSet] = set()
-        self.datasets: set[DataSet] = set()
+        self.datasets: list[DataSet] = []
         self.clean_extract = clean_extract
         self.clean_staging = clean_staging
-    
+        self.test_mode = test_mode
+
     def run_etl(self):
         log.info("Running ETL tool")
         self.calc_extraction_datasets()
 
-        # CFBD -> Extraction DB
+        # External data -> Extraction DB
         extract_success = self.extract()
         if not extract_success:
             self.cleanup_extraction()
             return
-        
+
         # Extraction DB -> Staging DB
         transform_success = self.transform()
         if not transform_success:
@@ -41,7 +51,7 @@ class EtlBase(ABC):
             return
 
         self.cleanup_extraction()
-        
+
         post_transform_success = self.post_transform()
         if not post_transform_success:
             self.cleanup_staging()
@@ -66,11 +76,13 @@ class EtlBase(ABC):
         log.info("Starting extraction of %i datasets" % len(self.extract_datasets))
         self.calc_extraction_datasets()
 
-        with CfbdConnection() as cfbd_client,  DbConnection() as db_client:
+        with CfbdConnection() as cfbd_client, DbConnection(self.test_mode) as db_client:
             count = 0
             for ds in self.extract_datasets:
                 count += 1
-                log.info(f"Extracting {type(ds).__name__} ({count}/{len(self.extract_datasets)})")
+                log.info(
+                    f"Extracting {type(ds).__name__} ({count}/{len(self.extract_datasets)})"
+                )
                 success = ds.extract(cfbd_client, db_client)
                 if not success:
                     return False
@@ -84,22 +96,24 @@ class EtlBase(ABC):
         """
         log.info("Starting transformation of %i datasets" % len(self.datasets))
 
-        with DbConnection() as db_client:
+        with DbConnection(self.test_mode) as db_client:
             count = 0
             for ds in self.datasets:
                 count += 1
-                log.info(f"Transforming {type(ds).__name__} ({count}/{len(self.datasets)})")
+                log.info(
+                    f"Transforming {type(ds).__name__} ({count}/{len(self.datasets)})"
+                )
                 success = ds.transform(db_client)
                 if not success:
                     return False
-                
+
         log.info("Finished transformation")
         return True
 
     @abstractmethod
     def post_transform(self) -> bool:
         """
-        Perform additional transformations after the Dataset.
+        Perform additional transformations after the Datasets.
         """
         pass
 
@@ -117,15 +131,19 @@ class EtlBase(ABC):
         if not self.clean_extract:
             log.info("Skipping extraction cleanup")
             return
-        
-        log.info("Starting extraction cleanup of %i datasets" % len(self.extract_datasets))
+
+        log.info(
+            "Starting extraction cleanup of %i datasets" % len(self.extract_datasets)
+        )
         self.calc_extraction_datasets()
-        
-        with DbConnection() as db_client:
+
+        with DbConnection(self.test_mode) as db_client:
             count = 0
             for ds in self.extract_datasets:
                 count += 1
-                log.info(f"Cleaning up {type(ds).__name__} ({count}/{len(self.extract_datasets)})")
+                log.info(
+                    f"Cleaning up {type(ds).__name__} ({count}/{len(self.extract_datasets)})"
+                )
                 ds.cleanup(db_client)
 
         log.info("Finished extraction cleanup")
@@ -136,13 +154,13 @@ class EtlBase(ABC):
         """
         log.info("Starting loading of %i datasets" % len(self.datasets))
 
-        with DbConnection() as db_client:
+        with DbConnection(self.test_mode) as db_client:
             count = 0
             for ds in self.datasets:
                 count += 1
                 log.info(f"Loading {type(ds).__name__} ({count}/{len(self.datasets)})")
                 ds.load(db_client)
-                
+
         log.info("Finished loading")
 
     def cleanup_staging(self):
@@ -152,14 +170,16 @@ class EtlBase(ABC):
         if not self.clean_staging:
             log.info("Skipping staging cleanup")
             return
-        
+
         log.info("Starting staging cleanup of %i datasets" % len(self.datasets))
-        
-        with DbConnection() as db_client:
+
+        with DbConnection(self.test_mode) as db_client:
             count = 0
             for ds in self.datasets:
                 count += 1
-                log.info(f"Cleaning up {type(ds).__name__} ({count}/{len(self.datasets)})")
+                log.info(
+                    f"Cleaning up {type(ds).__name__} ({count}/{len(self.datasets)})"
+                )
                 ds.cleanup(db_client)
 
         log.info("Finished extraction cleanup")
@@ -167,20 +187,23 @@ class EtlBase(ABC):
     def calc_extraction_datasets(self):
         if len(self.extract_datasets) > 0:
             return
-        
+
         for ds in self.datasets:
-            self.extract_datasets.update(ds.extract_datasets)
+            for dataset in ds.extract_datasets:
+                if not any(isinstance(d, type(dataset)) for d in self.extract_datasets):
+                    self.extract_datasets.add(dataset)
+
 
 class DataSet(ABC):
     """
-    Represents a transformational pipeline from the extraction DB to the staging and 
-    presentation DBs. Contains logic on how to transform data from extraction into 
+    Represents a transformational pipeline from the extraction DB to the staging and
+    presentation DBs. Contains logic on how to transform data from extraction into
     staging and load it into presentation.
     """
 
     def __init__(self):
         self.extract_datasets: set[ExtractionDataSet] = set()
-    
+
     @abstractmethod
     def transform(self, db_client: DbConnection) -> bool:
         pass
@@ -193,10 +216,11 @@ class DataSet(ABC):
     def cleanup(self, db_client: DbConnection):
         pass
 
+
 class ExtractionDataSet(ABC):
     """
-    Represents a pipeline from CFBD to the extraction DB. Contains logic on how to 
-    transfer data to and cleanup the extraction DB. Implementations should not 
+    Represents a pipeline from CFBD to the extraction DB. Contains logic on how to
+    transfer data to and cleanup the extraction DB. Implementations should not
     depend on other implementions.
     """
 
@@ -211,20 +235,27 @@ class ExtractionDataSet(ABC):
     def cleanup(self, db_client: DbConnection):
         pass
 
+
 def validate_mandatory_fields(entity, *fields) -> bool:
     for field in fields:
         if field not in entity or entity[field] is None:
             return False
-        
+
         if type(entity[field]) is str and entity[field] == "":
             return False
-        
+
         if type(entity[field]) in (dict, list, set, tuple) and len(entity[field]) == 0:
             return False
-                
+
     return True
 
-def load_into_production(prod_repo: AbstractRepository, stage_repo: AbstractRepository, query: Callable, replace: bool = False):
+
+def load_into_production(
+    prod_repo: AbstractRepository,
+    stage_repo: AbstractRepository,
+    query: Callable,
+    replace: bool = False,
+):
     for entity in stage_repo.find_by({}):
         prod_entity = prod_repo.find_one_by(query(entity))
         if prod_entity is not None:
@@ -234,3 +265,21 @@ def load_into_production(prod_repo: AbstractRepository, stage_repo: AbstractRepo
                 continue
 
         prod_repo.save(entity)
+
+
+def get_repos(
+    db_client: DbConnection,
+    model: type[CfbBaseModel],
+) -> tuple[AbstractRepository, AbstractRepository]:
+    """
+    Helper function to return the staging and production repositories for a given model, respectively.
+    """
+
+    stage_repo: AbstractRepository = db_client.get_cfb_repository(
+        Databases.staging, model
+    )
+    prod_repo: AbstractRepository = db_client.get_cfb_repository(
+        Databases.production, model
+    )
+
+    return stage_repo, prod_repo
