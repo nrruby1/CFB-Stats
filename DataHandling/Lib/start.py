@@ -15,8 +15,8 @@ with DbConnection(True) as db_client:
 EtlInit(
     years=[2025],
     skip_extract=False,
-    clean_extract=False,
-    clean_staging=False,
+    clean_extract=True,
+    clean_staging=True,
     test_mode=True,
 ).run_etl()
 
