@@ -7,7 +7,7 @@ from etl.etls.etl import *
 from etl.datasets.dataset_utility import *
 from etl.datasets.extraction_datasets import *
 
-log = logging.getLogger("CfbStats.etl")
+log = logging.getLogger("CfbStats.etl.datasets")
 
 
 class GameDataset(DataSet):
@@ -16,30 +16,37 @@ class GameDataset(DataSet):
     """
 
     def __init__(
-        self, years: list[int], classifications: list[str], weeks: list[int] = None
+        self,
+        years: list[int],
+        classifications: list[str],
+        weeks: list[int],
+        season_types: list[SeasonType],
     ):
         super().__init__()
         self.years = years
         self.classifications = classifications
         self.weeks = weeks
+        self.season_types = season_types
 
         self.extract_datasets = {
             ExtractGamesDataSet(
-                year_list=years, class_list=classifications, week_list=weeks
+                year_list=years,
+                class_list=classifications,
+                week_list=weeks,
+                season_types=season_types,
             ),
             ExtractVenueDataSet(),
         }
 
-    def transform(self, db_client: DbConnection) -> bool:
+        self.models = {Game: True, Venue: False}
+
+    def transform(self, db_client: DbConnection, operations: list) -> bool:
         """
         Transform game data from extraction database to staging database.
         """
         try:
             extr_game_coll = db_client.get_cfb_collection(
                 Databases.extraction, ExtractionCollections.game
-            )
-            stage_game_repo: GameRepository = db_client.get_cfb_repository(
-                Databases.staging, Game
             )
 
             count = 0
@@ -79,61 +86,46 @@ class GameDataset(DataSet):
                         winning_team_id = extr_game.get("awayId")
 
                 venue = get_or_create_venue(
-                    db_client, extr_game.get("venueId"), count=count
+                    db_client, extr_game.get("venueId"), operations, count=count
                 )
                 if venue is None:
                     log.warning(f"GameDataset: {extr_game.get('id')} has no venue")
 
                 game = Game(
-                    gameId=extr_game.get("id"),
+                    game_id=extr_game.get("id"),
                     season=extr_game.get("season"),
                     week=extr_game.get("week"),
-                    seasonType=extr_game.get("seasonType"),
-                    startDate=extr_game.get("startDate"),
-                    startTimeTBD=extr_game.get("startTimeTBD"),
+                    season_type=extr_game.get("seasonType"),
+                    start_date=extr_game.get("startDate"),
+                    start_time_tbd=extr_game.get("startTimeTBD"),
                     completed=extr_game.get("completed"),
-                    neutralSite=extr_game.get("neutralSite"),
-                    conferenceGame=extr_game.get("conferenceGame"),
+                    neutral_site=extr_game.get("neutralSite"),
+                    conference_game=extr_game.get("conferenceGame"),
                     attendance=extr_game.get("attendance"),
-                    venueId=venue.venue_id if venue is not None else None,
-                    homeId=extr_game.get("homeId"),
-                    awayId=extr_game.get("awayId"),
-                    winningTeamId=winning_team_id,
+                    venue_id=venue.venue_id if venue is not None else None,
+                    home_id=extr_game.get("homeId"),
+                    away_id=extr_game.get("awayId"),
+                    winning_team_id=winning_team_id,
                     notes=extr_game.get("notes"),
                 )
 
                 Game.model_validate(game)
-                stage_game_repo.save(game)
-                count += 1
+                op = insert_one_operation(
+                    db_client=db_client,
+                    db=Databases.staging,
+                    entity=game,
+                    do_replace=False,
+                )
+                if op is not None:
+                    operations.append(op)
+                    count += 1
+                else:
+                    log.warning(
+                        f"GameDataset: Failed to create insert operation for game id {game.game_id}"
+                    )
 
             log.debug(f"GameDataset: Transformed {count} entities")
             return True
         except Exception as e:
             log.exception(f"GameDataset: Exception during transform: {e}")
             return False
-
-    def load(self, db_client: DbConnection):
-        """
-        Load game data from staging database to production database.
-        """
-        try:
-            stage_game_repo, prod_game_repo = get_repos(db_client, Game)
-
-            query = lambda game: {"gameId": game.game_id}
-            load_into_production(
-                prod_repo=prod_game_repo,
-                stage_repo=stage_game_repo,
-                query=query,
-                replace=True,
-            )
-        except Exception as e:
-            log.exception(f"GameDataset: Exception during load: {e}")
-
-    def cleanup(self, db_client: DbConnection):
-        """
-        Clean up game data from staging database.
-        """
-        try:
-            cleanup_staging_collections(db_client, Game)
-        except Exception as e:
-            log.exception(f"GameDataset: Exception during cleanup: {e}")

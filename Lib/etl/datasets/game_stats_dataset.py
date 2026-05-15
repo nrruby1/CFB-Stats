@@ -3,12 +3,13 @@ from datetime import time
 from typing import Optional
 from db.db_connection import *
 from db.db_cleanup import cleanup_staging_collections
-from db.model.game import GameTeamStats
+from db.model.game import GameTeamStats, SeasonType
 from db.model.game_repository import GameTeamStatsRepository
 from etl.etls.etl import *
+from etl.datasets.dataset_utility import *
 from etl.datasets.extraction_datasets import ExtractGameTeamStats, ExtractGamesDataSet
 
-log = logging.getLogger("CfbStats.etl")
+log = logging.getLogger("CfbStats.etl.datasets")
 
 
 class GameStatsDataset(DataSet):
@@ -17,21 +18,33 @@ class GameStatsDataset(DataSet):
     """
 
     def __init__(
-        self, years: list[int], classifications: list[str], weeks: list[int] = None
+        self,
+        years: list[int],
+        classifications: list[str],
+        weeks: list[int],
+        season_types: list[SeasonType],
     ):
         super().__init__()
         self.years = years
         self.classifications = classifications
         self.weeks = weeks
+        self.season_types = season_types
 
         self.extract_datasets = {
             ExtractGamesDataSet(
-                year_list=years, class_list=classifications, week_list=weeks
+                year_list=years,
+                class_list=classifications,
+                week_list=weeks,
+                season_types=season_types,
             ),
-            ExtractGameTeamStats(year_list=years, week_list=weeks),
+            ExtractGameTeamStats(
+                year_list=years, week_list=weeks, season_types=self.season_types
+            ),
         }
 
-    def transform(self, db_client: DbConnection) -> bool:
+        self.models = {GameTeamStats: True}
+
+    def transform(self, db_client: DbConnection, operations: list) -> bool:
         """
         Transform game statistics data from extraction database to staging database.
         """
@@ -42,9 +55,6 @@ class GameStatsDataset(DataSet):
 
             extr_game_stats_coll = db_client.get_cfb_collection(
                 Databases.extraction, ExtractionCollections.game_team_stats
-            )
-            stage_game_stats_repo: GameTeamStatsRepository = (
-                db_client.get_cfb_repository(Databases.staging, GameTeamStats)
             )
 
             count = 0
@@ -85,9 +95,19 @@ class GameStatsDataset(DataSet):
                     )
                     continue
 
-                stage_game_stats_repo.save(home_team_stat)
-                stage_game_stats_repo.save(away_team_stat)
-                count += 2
+                ops = insert_many_operations(
+                    db_client=db_client,
+                    db=Databases.staging,
+                    entities=(home_team_stat, away_team_stat),
+                    do_replace=False,
+                )
+                if len(ops) == 2:
+                    operations.extend(ops)
+                    count += 2
+                else:
+                    log.warning(
+                        f"GameStatsDataset: Failed to create insert operations for game stat with id {extr_game_stat.get('id')}"
+                    )
 
             log.debug(f"GameStatsDataset: Transformed {count} entities")
             return True
@@ -147,48 +167,48 @@ class GameStatsDataset(DataSet):
         )
 
         game_stat = GameTeamStats(
-            gameId=extr_game_stat.get("id"),
-            teamId=team_id,
+            game_id=extr_game_stat.get("id"),
+            team_id=team_id,
             points=extr_team_stat.get("points"),
-            lineScores=line_scores,
-            possessionTime=possession_time,
-            totalYards=extr_team_stat.get("totalYards"),
-            rushingYards=rushing_yards,
-            rushingAttempts=rushing_attempts,
-            yardsPerRushAttempt=yards_per_rush_attempt,
-            rushingTDs=extr_team_stat.get("rushingTDs"),
-            passingYards=passing_yards,
+            line_scores=line_scores,
+            possession_time=possession_time,
+            total_yards=extr_team_stat.get("totalYards"),
+            rushing_yards=rushing_yards,
+            rushing_attempts=rushing_attempts,
+            yards_per_rush_attempt=yards_per_rush_attempt,
+            rushing_tds=extr_team_stat.get("rushingTDs"),
+            passing_yards=passing_yards,
             completions=completions,
-            passingAttempts=passing_attempts,
-            yardsPerPass=yards_per_pass,
-            yardsPerCompletion=yards_per_completion,
-            passingTDs=extr_team_stat.get("passingTDs"),
-            totalPenalties=total_penalties,
-            totalPenaltiesYards=total_penalties_yards,
-            firstDowns=extr_team_stat.get("firstDowns"),
-            thirdDownEff=third_down_eff,
-            fourthDownEff=fourth_down_eff,
+            passing_attempts=passing_attempts,
+            yards_per_pass=yards_per_pass,
+            yards_per_completion=yards_per_completion,
+            passing_tds=extr_team_stat.get("passingTDs"),
+            total_penalties=total_penalties,
+            total_penalties_yards=total_penalties_yards,
+            first_downs=extr_team_stat.get("firstDowns"),
+            third_down_eff=third_down_eff,
+            fourth_down_eff=fourth_down_eff,
             turnovers=extr_team_stat.get("turnovers"),
-            totalFumbles=extr_team_stat.get("totalFumbles"),
-            fumblesLost=extr_team_stat.get("fumblesLost"),
+            total_fumbles=extr_team_stat.get("totalFumbles"),
+            fumbles_lost=extr_team_stat.get("fumblesLost"),
             interceptions=extr_team_stat.get("interceptions"),
             tackles=extr_team_stat.get("tackles"),
-            tacklesForLoss=extr_team_stat.get("tacklesForLoss"),
-            qbHurries=extr_team_stat.get("qbHurries"),
+            tackles_for_loss=extr_team_stat.get("tacklesForLoss"),
+            qb_hurries=extr_team_stat.get("qbHurries"),
             sacks=extr_team_stat.get("sacks"),
-            passesDeflected=extr_team_stat.get("passesDeflected"),
-            fumblesRecovered=extr_team_stat.get("fumblesRecovered"),
-            passesIntercepted=extr_team_stat.get("passesIntercepted"),
-            interceptionTDs=extr_team_stat.get("interceptionTDs"),
-            interceptionYards=extr_team_stat.get("interceptionYards"),
-            defensiveTDs=extr_team_stat.get("defensiveTDs"),
-            kickingPoints=extr_team_stat.get("kickingPoints"),
-            kickReturns=extr_team_stat.get("kickReturns"),
-            kickReturnTDs=extr_team_stat.get("kickReturnTDs"),
-            kickReturnYards=extr_team_stat.get("kickReturnYards"),
-            puntReturns=extr_team_stat.get("puntReturns"),
-            puntReturnTDs=extr_team_stat.get("puntReturnTDs"),
-            puntReturnYards=extr_team_stat.get("puntReturnYards"),
+            passes_deflected=extr_team_stat.get("passesDeflected"),
+            fumbles_recovered=extr_team_stat.get("fumblesRecovered"),
+            passes_intercepted=extr_team_stat.get("passesIntercepted"),
+            interception_tds=extr_team_stat.get("interceptionTDs"),
+            interception_yards=extr_team_stat.get("interceptionYards"),
+            defensive_tds=extr_team_stat.get("defensiveTDs"),
+            kicking_points=extr_team_stat.get("kickingPoints"),
+            kick_returns=extr_team_stat.get("kickReturns"),
+            kick_return_tds=extr_team_stat.get("kickReturnTDs"),
+            kick_return_yards=extr_team_stat.get("kickReturnYards"),
+            punt_returns=extr_team_stat.get("puntReturns"),
+            punt_return_tds=extr_team_stat.get("puntReturnTDs"),
+            punt_return_yards=extr_team_stat.get("puntReturnYards"),
         )
 
         return game_stat
@@ -235,30 +255,3 @@ class GameStatsDataset(DataSet):
             return 0
         else:
             return round(yards / attempts, 1)
-
-    def load(self, db_client: DbConnection):
-        """
-        Load game statistics data from staging database to production database.
-        """
-        try:
-            stage_game_stats_repo, prod_game_stats_repo = get_repos(
-                db_client, GameTeamStats
-            )
-
-            query = lambda stat: {"game_id": stat.game_id, "team_id": stat.team_id}
-            load_into_production(
-                stage_repo=stage_game_stats_repo,
-                prod_repo=prod_game_stats_repo,
-                query=query,
-            )
-        except Exception as e:
-            log.exception(f"GameStatsDataset: Exception during load: {e}")
-
-    def cleanup(self, db_client: DbConnection):
-        """
-        Clean up game statistics data from staging database.
-        """
-        try:
-            cleanup_staging_collections(db_client, GameTeamStats)
-        except Exception as e:
-            log.exception(f"GameStatsDataset: Exception during cleanup: {e}")

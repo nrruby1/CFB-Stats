@@ -74,7 +74,34 @@ class DbConnection(MongoClient):
     ) -> AbstractRepository:
         if db is not Databases.staging and db is not Databases.production:
             raise Exception(
-                "get_cfb_repository: Database must either be Staging or Extraction"
+                "get_cfb_repository: Database must either be Staging or Production"
             )
         repo = model.model_repository()
         return repo(self.get_cfb_database(db))
+
+    def get_collection_namespace(
+        self, db: Databases, model: ExtractionCollections | Type[CfbBaseModel]
+    ) -> str:
+
+        collection_name = ""
+        if isinstance(model, ExtractionCollections):
+            if db is not Databases.extraction:
+                raise Exception(
+                    "get_cfb_collection: Extraction collections can only be fetched from Extraction DB"
+                )
+            collection_name = model.value
+
+        elif issubclass(model, CfbBaseModel):
+            if db is not Databases.staging and db is not Databases.production:
+                raise Exception(
+                    "get_cfb_collection: Model collections can only be fetched from Staging or Production"
+                )
+            collection_name = model.model_id()
+
+        else:
+            raise Exception("get_collection_namespace: Invalid 'model' argument")
+
+        if self.test_mode:
+            return f"test_{db.value}.{collection_name}"
+        else:
+            return f"{db.value}.{collection_name}"

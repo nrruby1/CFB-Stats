@@ -10,7 +10,6 @@ I wrote this project in [Python](https://www.python.org/) due to it's advanced d
 
 ## Planned Features
 
-- Pull weekly game data from the previous week.
 - Analyze teams' performances on a weekly bases to create predictions of upcoming matchups.
 - Create a web UI to allow users to view game predictions and team statistics.
 - Pull data while games are in progress to allow users to see realtime game updates.

@@ -21,7 +21,9 @@
     ],
     "python.languageServer": "Pylance",
     "python.analysis.extraPaths": [
-        "C:/Workspace/CfbStats/.venv/Lib/site-packages"
+        "C:/Workspace/CfbStats/.venv/Lib/site-packages",
+        "C:/Workspace/CfbStats/Lib",
+        "C:/Workspace/CfbStats/Tests"
     ],
     "python.analysis.autoSearchPaths": true,
     "python.analysis.useImportHeuristic": true
