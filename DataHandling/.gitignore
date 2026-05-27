@@ -1,7 +1,0 @@
-Log/*
-__pycache__/
-.vscode/settings.json
-
-Lib/config.py
-Lib/playground.py
-Lib/notes.txt

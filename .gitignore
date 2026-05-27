@@ -1,0 +1,9 @@
+__pycache__/
+DataHandling/.env
+DataHandling/.vscode/settings.json
+
+DataHandling/Lib/config.py
+DataHandling/Lib/playground.py
+DataHandling/Lib/notes.txt
+
+DataHandling/Log/*

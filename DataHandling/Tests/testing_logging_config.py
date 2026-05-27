@@ -5,7 +5,7 @@ app_logger = logging.getLogger("CfbStats")
 app_logger.setLevel(logging.DEBUG)
 
 # Configure log file for all output
-app_log_handler = logging.FileHandler("Log/app.log")
+app_log_handler = logging.FileHandler("Log/test.log")
 app_log_handler.setLevel(logging.DEBUG)
 app_log_formatter = logging.Formatter(
     "%(asctime)s | %(levelname)s | %(name)s | %(filename)s:%(lineno)d - %(message)s"

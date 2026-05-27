@@ -1,0 +1,42 @@
+[
+ {
+  "_id": "6a0cb00afd04ee926891366a",
+  "id": 9,
+  "name": "Pac-12",
+  "shortName": "Pac-12 Conference",
+  "abbreviation": "PAC",
+  "classification": "fbs"
+ },
+ {
+  "_id": "6a0cb00afd04ee926891366b",
+  "id": 8,
+  "name": "SEC",
+  "shortName": "Southeastern Conference",
+  "abbreviation": "SEC",
+  "classification": "fbs"
+ },
+ {
+  "_id": "6a0cb00afd04ee9268913691",
+  "id": 1,
+  "name": "ACC",
+  "shortName": "Atlantic Coast Conference",
+  "abbreviation": "ACC",
+  "classification": "fbs"
+ },
+ {
+  "_id": "6a0cb00afd04ee9268913692",
+  "id": 4,
+  "name": "Big 12",
+  "shortName": "Big 12 Conference",
+  "abbreviation": "B12",
+  "classification": "fbs"
+ },
+ {
+  "_id": "6a0cb00afd04ee9268913694",
+  "id": 5,
+  "name": "Big Ten",
+  "shortName": "Big Ten Conference",
+  "abbreviation": "B1G",
+  "classification": "fbs"
+ }
+]

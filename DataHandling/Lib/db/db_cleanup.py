@@ -10,14 +10,8 @@ log = logging.getLogger("CfbStats.db")
 def cleanup_collection(coll: Collection = None, repo: AbstractRepository = None):
     if coll is not None:
         coll.delete_many({})
-
-        log.debug(f"Cleaned up {coll.database.name} collection {coll.name}")
     elif repo is not None:
         repo.get_collection().delete_many({})
-
-        log.debug(
-            f"Cleaned up {repo.__database.name} collection {repo.Meta.collection_name}"
-        )
     else:
         raise Exception("Either 'coll' or 'repo' arument must not be None")
 

@@ -6,7 +6,6 @@ from venv import create
 
 from pydantic_mongo import AbstractRepository
 
-from pymongo import InsertOne, ReplaceOne
 from pymongo.client_session import ClientSession
 from timer import Timer
 from db.db_connection import *
@@ -34,12 +33,12 @@ class EtlBase(ABC):
         test_mode: bool = False,
     ):
         """
-        Implementations must set 'extract_datasets' and 'datasets' variables.
+        Implementations must set 'datasets' variable.
         """
         self.name = name
+        self.datasets: list[DataSet] = []
         self.extract_datasets: set[ExtractionDataSet] = set()
         self.models: dict[type[CfbBaseModel], bool] = {}
-        self.datasets: list[DataSet] = []
         self.skip_extract = skip_extract
         self.clean_extract = clean_extract
         self.clean_staging = clean_staging
