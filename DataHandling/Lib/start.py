@@ -7,17 +7,17 @@ from etl.etls.etl_init import EtlInit
 from etl.etls.etl_season_start import EtlSeasonStart
 from etl.etls.etl_weekly_results import EtlWeeklyResults
 
-with DbConnection(True) as db_client:
+with DbConnection(False) as db_client:
     cleanup_extraction_collections(db_client)
     cleanup_staging_collections(db_client)
     cleanup_production_collections(db_client)
 
 EtlInit(
-    years=[2025],
-    skip_extract=False,
-    clean_extract=False,
-    clean_staging=False,
-    test_mode=True,
+    # years=[2023, 2024, 2025],
+    # skip_extract=False,
+    # clean_extract=True,
+    # clean_staging=True,
+    # test_mode=True,
 ).run_etl()
 
 # EtlSeasonStart(
